@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>LLM Cost Calculator — compare frontier model API prices (2026)</title>
+<meta name="description" content="Estimate and compare the API cost of frontier LLMs (Claude, GPT-5, Gemini 3, Grok, DeepSeek, Llama 4) for your workload. Free, no signup."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#0a0c10;--panel:#11151c;--panel2:#161b24;--ink:#eef3f8;--mut:#8b97a8;--faint:#566273;
+    --line:#1e2530;--acc:#5cc8ff;--green:#34f5a0;--amber:#f5c518;--red:#ff6b81}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;line-height:1.5;
+    background-image:radial-gradient(60% 50% at 50% 0%,rgba(92,200,255,.06),transparent 70%)}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 80px}
+  header{text-align:center;margin-bottom:8px}
+  h1{font-size:clamp(26px,5vw,40px);font-weight:800;letter-spacing:-.02em}
+  h1 .g{background:linear-gradient(90deg,#5cc8ff,#34f5a0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--mut);font-size:15px;margin-top:8px}
+  .est{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:26px 0;
+    box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  .est h2{font-size:13px;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);margin-bottom:14px;font-weight:600}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  label{display:block;font-size:12px;color:var(--mut);margin-bottom:6px}
+  input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:11px 12px;font-family:"IBM Plex Mono",monospace;font-size:15px}
+  input:focus{outline:none;border-color:var(--acc)}
+  .preset{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .preset button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);border-radius:20px;
+    padding:6px 13px;font-size:12px;cursor:pointer;font-family:inherit}
+  .preset button:hover{border-color:var(--acc);color:var(--ink)}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+  th,td{padding:11px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);cursor:pointer;user-select:none}
+  th:hover{color:var(--ink)}
+  tbody tr:hover{background:rgba(92,200,255,.04)}
+  .model{font-weight:600}.prov{color:var(--faint);font-size:12px;font-weight:400}
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .cost{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .c-lo{color:var(--green)}.c-md{color:var(--amber)}.c-hi{color:var(--red)}
+  .free{color:var(--green);font-weight:600}
+  .note{color:var(--faint);font-size:12px;margin-top:18px;line-height:1.6}
+  .note a{color:var(--acc);text-decoration:none}
+  .tabs{display:flex;gap:6px;margin:22px 0 4px}
+  .tabs button{background:none;border:none;color:var(--mut);font-size:13px;font-weight:600;padding:8px 4px;
+    cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  .tabs button.on{color:var(--ink);border-color:var(--acc)}
+  .bar{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:4px;min-width:60px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#34f5a0,#5cc8ff)}
+  footer{text-align:center;color:var(--faint);font-size:12px;margin-top:40px}
+  footer a{color:var(--acc);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>LLM <span class="g">Cost Calculator</span></h1>
+    <div class="sub">Compare frontier model API prices for <em>your</em> workload. No signup, no tracking.</div>
+  </header>
+
+  <div class="est">
+    <h2>◆ Your workload</h2>
+    <div class="grid">
+      <div><label>Input tokens / request</label><input id="in" type="number" value="2000" min="0"/></div>
+      <div><label>Output tokens / request</label><input id="out" type="number" value="500" min="0"/></div>
+      <div><label>Requests / day</label><input id="req" type="number" value="1000" min="0"/></div>
+      <div><label>Cached input %</label><input id="cache" type="number" value="0" min="0" max="100"/></div>
+    </div>
+    <div class="preset">
+      <button data-p="2000,500,1000,0">Chatbot (1k/day)</button>
+      <button data-p="8000,1200,500,40">RAG app (8k ctx)</button>
+      <button data-p="400,150,50000,0">Classifier (high vol)</button>
+      <button data-p="60000,4000,200,60">Agent / long ctx</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button id="tab-est" class="on">💸 Cost for your workload</button>
+    <button id="tab-price">🏷️ Raw prices</button>
+  </div>
+  <table>
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="note" id="note"></div>
+  <footer>
+    Built by an AI agent as part of <a href="https://github.com/emaadshamsi">money_maker</a> ·
+    play the <a href="https://emaadshamsi.github.io/paper-hands/">arcade</a> ·
+    prices approximate, verify live on each provider.
+  </footer>
+</div>
+<script>
+// Prices in $ per 1M tokens (input, output). Approx, as of May 2026, via OpenRouter listings.
+// Verify live — provider prices change. Cached input assumed ~10% of input price where applicable.
+const MODELS=[
+  {m:"Claude Opus 4.8",p:"Anthropic",in:5,out:25,ctx:"1M"},
+  {m:"Claude Sonnet 4.6",p:"Anthropic",in:3,out:15,ctx:"1M"},
+  {m:"GPT-5.5",p:"OpenAI",in:5,out:30,ctx:"400k"},
+  {m:"GPT-5.4",p:"OpenAI",in:2.5,out:15,ctx:"400k"},
+  {m:"GPT-5.4 mini",p:"OpenAI",in:0.75,out:4.5,ctx:"400k"},
+  {m:"GPT-5.4 nano",p:"OpenAI",in:0.20,out:1.25,ctx:"400k"},
+  {m:"Gemini 3.1 Pro",p:"Google",in:2,out:12,ctx:"2M"},
+  {m:"Gemini 3.5 Flash",p:"Google",in:1.5,out:9,ctx:"1M"},
+  {m:"Gemini 2.5 Flash",p:"Google",in:0.30,out:2.5,ctx:"1M"},
+  {m:"Gemini 2.5 Flash-Lite",p:"Google",in:0.10,out:0.40,ctx:"1M"},
+  {m:"Grok 4.20",p:"xAI",in:1.25,out:2.5,ctx:"2M"},
+  {m:"DeepSeek V4 Pro",p:"DeepSeek",in:0.44,out:0.87,ctx:"160k"},
+  {m:"DeepSeek V4 Flash",p:"DeepSeek",in:0,out:0,ctx:"160k",free:1},
+  {m:"Llama 4 Scout",p:"Meta",in:0.08,out:0.30,ctx:"10M"},
+  {m:"Mistral Large 2512",p:"Mistral",in:0.50,out:1.50,ctx:"256k"},
+  {m:"Qwen3.7 Max",p:"Qwen",in:1.25,out:3.75,ctx:"256k"},
+];
+const $=id=>document.getElementById(id);
+let mode="est", sortKey="cost", sortDir=1;
+function vals(){return{i:+$("in").value||0,o:+$("out").value||0,r:+$("req").value||0,c:Math.min(100,Math.max(0,+$("cache").value||0))/100};}
+function monthly(md){const {i,o,r,c}=vals();
+  const inEff=i*(1-c)+i*c*0.1; // cached tokens ~10% price (rough)
+  const per=(inEff/1e6)*md.in+(o/1e6)*md.out;
+  return per*r*30;}
+function fmt(n){if(n===0)return "$0";if(n<10)return "$"+n.toFixed(2);if(n<1000)return "$"+n.toFixed(0);
+  if(n<1e6)return "$"+(n/1000).toFixed(1)+"k";return "$"+(n/1e6).toFixed(2)+"M";}
+function render(){
+  const est=mode==="est";
+  $("tab-est").className=est?"on":"";$("tab-price").className=est?"":"on";
+  let rows=MODELS.map(m=>({...m,cost:monthly(m)}));
+  const key=est?(sortKey==="cost"?"cost":sortKey):sortKey;
+  rows.sort((a,b)=>{let x=a[key],y=b[key];if(typeof x==="string"){x=x.toLowerCase();y=y.toLowerCase();return x<y?-sortDir:x>y?sortDir:0;}return (x-y)*sortDir;});
+  const max=Math.max(...rows.map(r=>r.cost))||1;
+  $("thead").innerHTML = est
+    ? `<tr><th data-k="m">Model</th><th data-k="in">$/M in</th><th data-k="out">$/M out</th><th data-k="cost">Est. $/month ▾</th><th>relative</th></tr>`
+    : `<tr><th data-k="m">Model</th><th data-k="p">Provider</th><th data-k="in">$/M in</th><th data-k="out">$/M out</th><th data-k="ctx">Context</th></tr>`;
+  $("tbody").innerHTML = rows.map(r=>{
+    const c=r.cost, cls=c===0?"free":c<max*0.15?"c-lo":c<max*0.5?"c-md":"c-hi";
+    if(est) return `<tr><td><span class="model">${r.m}</span> <span class="prov">${r.p}</span></td>
+      <td class="mono">${r.free?'<span class="free">free</span>':'$'+r.in}</td>
+      <td class="mono">${r.free?'<span class="free">free</span>':'$'+r.out}</td>
+      <td class="cost ${cls}">${r.free?'<span class="free">$0</span>':fmt(c)}</td>
+      <td><div class="bar"><i style="width:${Math.max(2,c/max*100)}%"></i></div></td></tr>`;
+    return `<tr><td class="model">${r.m}</td><td class="prov">${r.p}</td>
+      <td class="mono">${r.free?'<span class="free">free</span>':'$'+r.in}</td>
+      <td class="mono">${r.free?'<span class="free">free</span>':'$'+r.out}</td>
+      <td class="mono prov">${r.ctx}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=k==="m"||k==="p"?1:1;}render();});
+  const {i,o,r}=vals();
+  $("note").innerHTML=`Estimating <b>${(i).toLocaleString()}</b> input + <b>${o.toLocaleString()}</b> output tokens × <b>${r.toLocaleString()}</b> req/day × 30 days.
+    Prices are $ per 1M tokens, <b>approximate, as of May 2026</b> via OpenRouter listings — always verify live (<a href="https://openrouter.ai/models">openrouter.ai/models</a>). Cached input billed at ~10% (rough). Not affiliated with any provider.`;
+}
+["in","out","req","cache"].forEach(id=>$(id).addEventListener("input",render));
+document.querySelectorAll(".preset button").forEach(b=>b.onclick=()=>{const[a,c,d,e]=b.dataset.p.split(",");$("in").value=a;$("out").value=c;$("req").value=d;$("cache").value=e;render();});
+$("tab-est").onclick=()=>{mode="est";sortKey="cost";render();};
+$("tab-price").onclick=()=>{mode="price";sortKey="in";render();};
+render();
+</script>
+</body>
+</html>
