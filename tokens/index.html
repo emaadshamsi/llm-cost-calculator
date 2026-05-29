@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Token Counter — count tokens & check LLM context fit + cost (2026)</title>
+<meta name="description" content="Paste text, get an accurate token count, see which frontier-model context windows it fits, and the input cost to process it."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{--bg:#0a0c10;--panel:#11151c;--panel2:#161b24;--ink:#eef3f8;--mut:#8b97a8;--faint:#566273;
+    --line:#1e2530;--acc:#5cc8ff;--green:#34f5a0;--amber:#f5c518;--red:#ff6b81}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;line-height:1.5;
+    background-image:radial-gradient(60% 50% at 50% 0%,rgba(92,200,255,.06),transparent 70%)}
+  .wrap{max-width:920px;margin:0 auto;padding:32px 20px 80px}
+  header{text-align:center;margin-bottom:18px}
+  h1{font-size:clamp(24px,5vw,36px);font-weight:800;letter-spacing:-.02em}
+  h1 .g{background:linear-gradient(90deg,#5cc8ff,#34f5a0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{color:var(--mut);font-size:15px;margin-top:8px}
+  .nav{text-align:center;margin-bottom:18px;font-size:13px}
+  .nav a{color:var(--acc);text-decoration:none;margin:0 8px}
+  textarea{width:100%;min-height:180px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:12px;padding:16px;font-family:"IBM Plex Mono",monospace;font-size:14px;resize:vertical}
+  textarea:focus{outline:none;border-color:var(--acc)}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .n{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600}
+  .stat .n.acc{color:var(--acc)}.stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  th,td{padding:10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+  .model{font-weight:600}.prov{color:var(--faint);font-size:12px;font-weight:400}
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .fit{color:var(--green);font-weight:600}.nofit{color:var(--red);font-weight:600}
+  .note{color:var(--faint);font-size:12px;margin-top:18px;line-height:1.6}.note a{color:var(--acc);text-decoration:none}
+  footer{text-align:center;color:var(--faint);font-size:12px;margin-top:36px}footer a{color:var(--acc);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Token <span class="g">Counter</span></h1>
+    <div class="sub">Paste text → token count, context-window fit, and input cost across frontier models.</div>
+  </header>
+  <div class="nav"><a href="../">← LLM Cost Calculator</a> · <a href="https://emaadshamsi.github.io/paper-hands/">arcade</a></div>
+
+  <textarea id="txt" placeholder="Paste or type text here…"></textarea>
+  <div class="row">
+    <div class="stat"><div class="n acc" id="tok">0</div><div class="l">tokens</div></div>
+    <div class="stat"><div class="n" id="chars">0</div><div class="l">characters</div></div>
+    <div class="stat"><div class="n" id="words">0</div><div class="l">words</div></div>
+    <div class="stat"><div class="n mono" id="method" style="font-size:14px;padding-top:8px">…</div><div class="l">counting method</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Model</th><th>Context</th><th>Fits?</th><th>% of window</th><th>Input cost</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="note" id="note"></div>
+  <footer>Part of <a href="https://github.com/emaadshamsi">money_maker</a> · token counts are estimates (see note) · prices approximate, verify live.</footer>
+</div>
+<script type="module">
+// model context windows (tokens) + input $/1M. Approx, as of May 2026 via OpenRouter.
+const MODELS=[
+  {m:"Claude Opus 4.8",p:"Anthropic",ctx:1_000_000,in:5},
+  {m:"Claude Sonnet 4.6",p:"Anthropic",ctx:1_000_000,in:3},
+  {m:"GPT-5.5",p:"OpenAI",ctx:400_000,in:5},
+  {m:"GPT-5.4 mini",p:"OpenAI",ctx:400_000,in:0.75},
+  {m:"Gemini 3.1 Pro",p:"Google",ctx:2_000_000,in:2},
+  {m:"Gemini 2.5 Flash",p:"Google",ctx:1_000_000,in:0.30},
+  {m:"Grok 4.20",p:"xAI",ctx:2_000_000,in:1.25},
+  {m:"DeepSeek V4 Pro",p:"DeepSeek",ctx:160_000,in:0.44},
+  {m:"Llama 4 Scout",p:"Meta",ctx:10_000_000,in:0.08},
+  {m:"Mistral Large 2512",p:"Mistral",ctx:256_000,in:0.50},
+];
+const $=id=>document.getElementById(id);
+let encode=null, method="heuristic (~chars/4)";
+// try a real BPE tokenizer; fall back to a heuristic if the CDN is unavailable
+try{
+  const mod=await import("https://esm.sh/gpt-tokenizer@2");
+  if(mod&&mod.encode){encode=mod.encode;method="o200k_base BPE (GPT)";}
+}catch(e){ encode=null; }
+function countTokens(t){
+  if(!t)return 0;
+  if(encode){try{return encode(t).length;}catch(e){}}
+  // heuristic: blend of chars/4 and words*1.33 (decent for English/code)
+  const words=(t.trim().match(/\S+/g)||[]).length;
+  return Math.max(Math.round(t.length/4), Math.round(words*1.33));
+}
+function fmt(n){return n.toLocaleString();}
+function cost(tok,inP){const c=(tok/1e6)*inP;return c<0.01?"<$0.01":"$"+c.toFixed(c<1?3:2);}
+function render(){
+  const t=$("txt").value;
+  const tok=countTokens(t), chars=t.length, words=(t.trim().match(/\S+/g)||[]).length;
+  $("tok").textContent=fmt(tok);$("chars").textContent=fmt(chars);$("words").textContent=fmt(words);
+  $("method").textContent=encode?"BPE (exact, GPT)":"heuristic";
+  $("tbody").innerHTML=MODELS.map(m=>{
+    const fits=tok<=m.ctx, pct=Math.min(100,(tok/m.ctx)*100);
+    return `<tr><td><span class="model">${m.m}</span> <span class="prov">${m.p}</span></td>
+      <td class="mono prov">${m.ctx>=1e6?(m.ctx/1e6)+"M":(m.ctx/1000)+"k"}</td>
+      <td class="${fits?'fit':'nofit'}">${fits?'✓ fits':'✗ over'}</td>
+      <td class="mono">${pct<0.1&&tok>0?'<0.1':pct.toFixed(1)}%</td>
+      <td class="mono">${cost(tok,m.in)}</td></tr>`;
+  }).join("");
+  $("note").innerHTML=`Token count via <b>${method}</b>. GPT models use this exactly; Claude / Gemini / others
+    use different tokenizers and will vary (typically ±10–20%). Treat as a close estimate. "Input cost" = cost to send this text once as input — prices approx, as of May 2026
+    (<a href="https://openrouter.ai/models">verify live</a>).`;
+}
+$("txt").addEventListener("input",render);
+$("txt").value="Paste your prompt, document, or codebase here to see how many tokens it is, which models can hold it, and what it costs to process.";
+render();
+</script>
+</body>
+</html>
